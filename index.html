@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Google Ads tag -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18329237137"></script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','AW-18329237137');</script>
   <title>STREEZ Real Estate | Buy, Sell, Rent & Lease Property in Chennai</title>
   <meta name="description" content="Your trusted partner for buying, selling, renting and leasing residential and commercial properties, plots and flats across Chennai, Tamil Nadu. Contact STREEZ Real Estate today.">
   <meta name="robots" content="index, follow">
@@ -2645,113 +2648,56 @@
       if (lookingInput) lookingInput.value = intent;
     }
 
-    // 6. FORM VALIDATION & WHATSAPP FALLBACK SUBMISSION
-    function handleFormSubmit(e) {
+    // 6. FORM VALIDATION, GOOGLE SHEETS, THANK-YOU PAGE & WHATSAPP
+    async function handleFormSubmit(e) {
       e.preventDefault();
-
       const nameInput = document.getElementById('clientName');
       const phoneInput = document.getElementById('clientPhone');
       const lookingInput = document.getElementById('clientLooking');
       const typeInput = document.getElementById('clientType');
       const messageInput = document.getElementById('clientMessage');
       const consentInput = document.getElementById('privacyConsent');
-
-      let isValid = true;
-
-      // Validate Name
       const name = nameInput.value.trim();
-      if (!name || name.length < 2) {
-        nameInput.classList.add('error');
-        document.getElementById('nameError').classList.add('visible');
-        isValid = false;
-      } else {
-        nameInput.classList.remove('error');
-        document.getElementById('nameError').classList.remove('visible');
-      }
-
-      // Validate Phone (Sensible Indian mobile number: 10 digits, optional +91 or 0 prefix)
       const phoneRaw = phoneInput.value.trim();
       const cleanPhone = phoneRaw.replace(/[\s\-\(\)\+]/g, '');
-      const isIndianPhone = /^(?:91|0)?[6-9]\d{9}$/.test(cleanPhone);
+      let valid = true;
+      const checks = [
+        [!name || name.length < 2, nameInput, 'nameError'],
+        [!/^(?:91|0)?[6-9]\d{9}$/.test(cleanPhone), phoneInput, 'phoneError'],
+        [!lookingInput.value, lookingInput, 'lookingError'],
+        [!typeInput.value, typeInput, 'typeError']
+      ];
+      checks.forEach(([bad, input, errId]) => {
+        input.classList.toggle('error', bad);
+        const err = document.getElementById(errId); if (err) err.classList.toggle('visible', bad);
+        if (bad) valid = false;
+      });
+      const consentErr = document.getElementById('consentError');
+      if (!consentInput.checked) { if (consentErr) consentErr.classList.add('visible'); valid = false; }
+      else if (consentErr) consentErr.classList.remove('visible');
+      if (!valid) return;
 
-      if (!isIndianPhone) {
-        phoneInput.classList.add('error');
-        document.getElementById('phoneError').classList.add('visible');
-        isValid = false;
-      } else {
-        phoneInput.classList.remove('error');
-        document.getElementById('phoneError').classList.remove('visible');
-      }
-
-      // Validate Looking For
-      if (!lookingInput.value) {
-        lookingInput.classList.add('error');
-        document.getElementById('lookingError').classList.add('visible');
-        isValid = false;
-      } else {
-        lookingInput.classList.remove('error');
-        document.getElementById('lookingError').classList.remove('visible');
-      }
-
-      // Validate Property Type
-      if (!typeInput.value) {
-        typeInput.classList.add('error');
-        document.getElementById('typeError').classList.add('visible');
-        isValid = false;
-      } else {
-        typeInput.classList.remove('error');
-        document.getElementById('typeError').classList.remove('visible');
-      }
-
-      // Validate Privacy Consent
-      if (!consentInput.checked) {
-        document.getElementById('consentError').classList.add('visible');
-        isValid = false;
-      } else {
-        document.getElementById('consentError').classList.remove('visible');
-      }
-
-      if (!isValid) return;
-
-      // Format WhatsApp message payload
       const looking = lookingInput.value;
       const propType = typeInput.value;
-      const message = messageInput.value.trim();
+      const message = messageInput ? messageInput.value.trim() : '';
+      const payload = {
+        name, phone: phoneRaw, lookingFor: looking, propertyType: propType,
+        message, source: 'STREEZ Estates Website', pageUrl: location.href
+      };
+      const waText = `Property Enquiry for STREEZ Real Estate\nName: ${name}\nPhone: ${phoneRaw}\nRequirement: ${looking}\nProperty Type: ${propType}\n${message ? 'Message: '+message+'\n' : ''}City: Chennai, Tamil Nadu\nSent via STREEZ Real Estate Website`;
+      const waUrl = 'https://wa.me/919092522219?text=' + encodeURIComponent(waText);
 
-      let waText = `*Property Enquiry for STREEZ Real Estate*%0A`;
-      waText += `----------------------------%0A`;
-      waText += `*Name:* ${encodeURIComponent(name)}%0A`;
-      waText += `*Phone:* ${encodeURIComponent(phoneRaw)}%0A`;
-      waText += `*Requirement:* Looking to ${encodeURIComponent(looking)}%0A`;
-      waText += `*Property Type:* ${encodeURIComponent(propType)}%0A`;
-      if (message) {
-        waText += `*Message:* ${encodeURIComponent(message)}%0A`;
-      }
-      waText += `*City:* Chennai, Tamil Nadu%0A`;
-      waText += `----------------------------%0A`;
-      waText += `_Sent via STREEZ Real Estate Website_`;
+      // Send lead to the deployed Google Apps Script web app.
+      // no-cors prevents browser CORS blocking; the request is fire-and-forget.
+      const sheetEndpoint = 'https://script.google.com/macros/s/AKfycbxO8lbhDoEVwKp2MkTYHZJYP6SovE_z2KlF_Fwa5pU_oaBN_4e1yhrrGULjoDvMLU278A/exec';
+      try {
+        const body = new URLSearchParams({name: payload.name, phone: payload.phone, lookingFor: payload.lookingFor, propertyType: payload.propertyType, message: payload.message, source: payload.source, pageUrl: payload.pageUrl});
+        fetch(sheetEndpoint, {method:'POST', mode:'no-cors', body, keepalive:true}).catch(err => console.warn('Lead submission request failed', err));
+      } catch (err) { console.warn('Could not send lead to Google Sheets', err); }
 
-      const waUrl = `https://wa.me/918604300712?text=${waText}`;
-
-      // Populate summary box in modal
-      const summaryBox = document.getElementById('successSummaryBox');
-      summaryBox.innerHTML = `
-        <strong>Name:</strong> ${escapeHtml(name)}<br>
-        <strong>Phone:</strong> ${escapeHtml(phoneRaw)}<br>
-        <strong>Requirement:</strong> Looking to ${escapeHtml(looking)} (${escapeHtml(propType)})<br>
-        ${message ? `<strong>Message:</strong> ${escapeHtml(message)}<br>` : ''}
-        <span style="display:inline-block; margin-top:8px; color:var(--primary); font-weight:700;">Location: Chennai, Tamil Nadu</span>
-      `;
-
-      // Set link
-      const waButton = document.getElementById('successWhatsAppLink');
-      waButton.href = waUrl;
-
-      // Show confirmation modal
-      document.getElementById('successModal').classList.add('active');
-
-      // Also trigger WhatsApp in new tab for direct seamless action
-      window.open(waUrl, '_blank', 'noopener');
+      // Open WhatsApp from the user gesture; thank-you page also has a manual fallback button.
+      const thankUrl = 'thank-you.html?wa=' + encodeURIComponent(waUrl) + '&name=' + encodeURIComponent(name);
+      window.location.href = thankUrl;
     }
 
     function escapeHtml(text) {
